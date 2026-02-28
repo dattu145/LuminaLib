@@ -8,7 +8,6 @@ import {
     BookMarked,
     Settings,
     Receipt,
-    Search,
     BarChart3,
     Menu,
     X
@@ -39,7 +38,11 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         { label: 'Management', path: '/admin', icon: <Settings size={20} />, role: ['admin'] },
     ];
 
-    const filteredNavItems = navItems.filter(item => !item.role || (user && item.role.includes(user.role)));
+    const filteredNavItems = navItems.filter(item => {
+        if (!item.role) return true; // public items
+        if (!user) return false; // hide role-specific items for guests
+        return item.role.includes(user.role);
+    });
 
     return (
         <div className="min-h-screen flex bg-slate-50 overflow-hidden">
@@ -71,22 +74,39 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 </nav>
 
                 <div className="p-6 border-t border-slate-800 bg-slate-900/50 backdrop-blur-sm">
-                    <div className="flex items-center gap-4 mb-6 px-2">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-white shadow-xl">
-                            {user?.name.charAt(0)}
+                    {user ? (
+                        <>
+                            <div className="flex items-center gap-4 mb-6 px-2">
+                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-white shadow-xl">
+                                    {user.name.charAt(0)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold truncate leading-tight">{user.name}</p>
+                                    <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black mt-1">{user.role}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleLogout}
+                                className="w-full flex items-center justify-center gap-3 px-4 py-3 text-red-400 bg-red-500/5 hover:bg-red-500/10 border border-red-500/20 rounded-xl transition-all font-bold group"
+                            >
+                                <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
+                                <span>Sign Out</span>
+                            </button>
+                        </>
+                    ) : (
+                        <div className="flex flex-col items-center gap-4 px-2">
+                            <div className="text-center w-full mb-2">
+                                <p className="text-sm font-bold text-slate-300">Guest User</p>
+                                <p className="text-xs text-slate-500 mt-1">Viewing Public Catalog</p>
+                            </div>
+                            <Link
+                                to="/login"
+                                className="w-full flex items-center justify-center gap-3 px-4 py-3 text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition-all font-bold shadow-lg shadow-blue-600/20"
+                            >
+                                <span>Sign In to LuminaLib</span>
+                            </Link>
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold truncate leading-tight">{user?.name}</p>
-                            <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black mt-1">{user?.role}</p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center justify-center gap-3 px-4 py-3 text-red-400 bg-red-500/5 hover:bg-red-500/10 border border-red-500/20 rounded-xl transition-all font-bold group"
-                    >
-                        <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
-                        <span>Sign Out</span>
-                    </button>
+                    )}
                 </div>
             </aside>
 
@@ -101,28 +121,28 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                         >
                             <Menu size={24} />
                         </button>
-                        <div className="hidden md:flex items-center gap-3 bg-slate-100 px-4 py-2.5 rounded-2xl border border-slate-200 focus-within:ring-2 ring-blue-500/20 ring-offset-0 transition-all">
-                            <Search className="text-slate-400" size={18} />
-                            <input
-                                type="text"
-                                placeholder="Search catalog, isbn, or author..."
-                                className="bg-transparent border-none outline-none text-sm w-80 text-slate-800 placeholder:text-slate-400"
-                            />
-                        </div>
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <NotificationCenter />
-                        <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
-                        <div className="flex items-center gap-4 pl-2 cursor-pointer group">
-                            <div className="text-right hidden sm:block">
-                                <p className="text-sm font-bold text-slate-900 leading-none">{user?.name.split(' ')[0]}</p>
-                                <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase tracking-tighter">ID: {user?.register_number}</p>
-                            </div>
-                            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold group-hover:scale-110 transition-transform">
-                                {user?.name.charAt(0)}
-                            </div>
-                        </div>
+                        {user ? (
+                            <>
+                                <NotificationCenter />
+                                <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
+                                <div className="flex items-center gap-4 pl-2 cursor-pointer group">
+                                    <div className="text-right hidden sm:block">
+                                        <p className="text-sm font-bold text-slate-900 leading-none">{user.name.split(' ')[0]}</p>
+                                        <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase tracking-tighter">ID: {user.register_number}</p>
+                                    </div>
+                                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold group-hover:scale-110 transition-transform">
+                                        {user.name.charAt(0)}
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <Link to="/login" className="px-5 py-2 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors">
+                                Sign In
+                            </Link>
+                        )}
                     </div>
                 </header>
 
@@ -166,8 +186,8 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                 to={item.path}
                                 onClick={() => setIsMobileMenuOpen(false)}
                                 className={`flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-200 group ${location.pathname === item.path
-                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-bold'
-                                        : 'text-slate-400 hover:text-white hover:bg-slate-800 font-semibold'
+                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-bold'
+                                    : 'text-slate-400 hover:text-white hover:bg-slate-800 font-semibold'
                                     }`}
                             >
                                 <div className={`${location.pathname === item.path ? 'text-white' : 'group-hover:text-blue-400'} transition-colors`}>
@@ -179,22 +199,33 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     </nav>
 
                     <div className="pt-6 border-t border-slate-800 mt-6 pb-2">
-                        <div className="flex items-center gap-4 mb-6 px-2">
-                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-white shadow-xl">
-                                {user?.name.charAt(0)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold text-white truncate leading-tight">{user?.name}</p>
-                                <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black mt-1">ID: {user?.register_number}</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={handleLogout}
-                            className="w-full flex items-center justify-center gap-3 px-4 py-3 text-red-400 bg-red-500/5 hover:bg-red-500/10 border border-red-500/20 rounded-xl transition-all font-bold group"
-                        >
-                            <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
-                            <span>Sign Out</span>
-                        </button>
+                        {user ? (
+                            <>
+                                <div className="flex items-center gap-4 mb-6 px-2">
+                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-white shadow-xl">
+                                        {user.name.charAt(0)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-bold text-white truncate leading-tight">{user.name}</p>
+                                        <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black mt-1">ID: {user.register_number}</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleLogout}
+                                    className="w-full flex items-center justify-center gap-3 px-4 py-3 text-red-400 bg-red-500/5 hover:bg-red-500/10 border border-red-500/20 rounded-xl transition-all font-bold group"
+                                >
+                                    <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
+                                    <span>Sign Out</span>
+                                </button>
+                            </>
+                        ) : (
+                            <Link
+                                to="/login"
+                                className="w-full flex items-center justify-center gap-3 px-4 py-3 text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition-all font-bold shadow-lg shadow-blue-600/20"
+                            >
+                                <span>Sign In to LuminaLib</span>
+                            </Link>
+                        )}
                     </div>
                 </div>
             </div>

@@ -38,22 +38,8 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/books"
-            element={
-              <ProtectedRoute>
-                <BookCatalog />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/books" element={<BookCatalog />} />
           <Route path="/kiosk" element={<LibraryKiosk />} />
           <Route
             path="/sessions"

@@ -1,14 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Check, Clock, AlertCircle, CheckCheck } from 'lucide-react';
 import api from '../../services/api';
+import { useAuth } from '../../store/AuthContext';
 
 const NotificationCenter: React.FC = () => {
+    const { user } = useAuth();
     const [notifications, setNotifications] = useState<any[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     const fetchNotifications = async () => {
+        // Only fetch when authenticated
+        if (!user) return;
+
         try {
             const notifRes = await api.get('/notifications');
             setNotifications(Array.isArray(notifRes.data) ? notifRes.data : []);
@@ -18,18 +23,19 @@ const NotificationCenter: React.FC = () => {
 
         try {
             const countRes = await api.get('/notifications/unread-count');
-            setUnreadCount(countRes.data.unread_count || 0);
+            setUnreadCount(countRes.data.count || countRes.data.unread_count || 0);
         } catch (err) {
             console.error('Failed to fetch unread count:', err);
         }
     };
 
     useEffect(() => {
+        if (!user) return; // Don't poll when guest
         fetchNotifications();
         // Auto-refresh every 2 minutes
         const interval = setInterval(fetchNotifications, 120000);
         return () => clearInterval(interval);
-    }, []);
+    }, [user]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {

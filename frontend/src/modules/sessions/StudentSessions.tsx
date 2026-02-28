@@ -82,8 +82,8 @@ const StudentSessions: React.FC = () => {
                     </h3>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                <div className="overflow-x-auto w-full">
+                    <table className="w-full text-left min-w-[700px]">
                         <thead>
                             <tr className="text-[11px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50">
                                 <th className="px-8 py-4">Date</th>

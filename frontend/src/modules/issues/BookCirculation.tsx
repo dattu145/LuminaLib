@@ -140,8 +140,8 @@ const BookCirculation: React.FC = () => {
 
                         <div className="p-0">
                             {activeIssues.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
+                                <div className="overflow-x-auto w-full">
+                                    <table className="w-full text-left min-w-[800px]">
                                         <thead>
                                             <tr className="text-slate-400 uppercase text-[11px] font-black tracking-widest border-b border-slate-50">
                                                 <th className="px-8 py-4">Book</th>

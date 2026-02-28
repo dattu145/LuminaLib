@@ -45,29 +45,35 @@ const StudentDashboard = () => {
     React.useEffect(() => {
         const fetchData = async () => {
             try {
-                const [loansRes, sessionsRes] = await Promise.all([
+                const [loansResult, sessionsResult] = await Promise.allSettled([
                     api.get('/my-issues'),
                     api.get('/my-sessions')
                 ]);
 
-                // Handle paginated responses
-                const loansData = loansRes.data.data || loansRes.data;
-                const sessionsData = sessionsRes.data.data || sessionsRes.data;
+                const loansData = loansResult.status === 'fulfilled'
+                    ? (loansResult.value.data.data || loansResult.value.data || [])
+                    : [];
+                const sessionsData = sessionsResult.status === 'fulfilled'
+                    ? (sessionsResult.value.data.data || sessionsResult.value.data || [])
+                    : [];
 
-                setLoans(loansData);
-                setSessions(sessionsData);
+                setLoans(Array.isArray(loansData) ? loansData : []);
+                setSessions(Array.isArray(sessionsData) ? sessionsData : []);
 
                 // Calculate stats locally from fetched data
-                const activeLoans = Array.isArray(loansData) ? loansData.filter((l: any) => l.status !== 'returned') : [];
-                const overdue = activeLoans.filter((l: any) => new Date(l.due_date) < new Date());
-                const totalFine = Array.isArray(loansData) ? loansData.reduce((acc: number, curr: any) => acc + (curr.fine_paid ? 0 : parseFloat(curr.fine_amount)), 0) : 0;
-                const avgSession = Array.isArray(sessionsData) && sessionsData.length > 0
-                    ? Math.round(sessionsData.reduce((acc: number, s: any) => acc + (s.total_duration || 0), 0) / sessionsData.length)
+                const safeLoans = Array.isArray(loansData) ? loansData : [];
+                const safeSessions = Array.isArray(sessionsData) ? sessionsData : [];
+                const activeLoans = safeLoans.filter((l: any) => l.status !== 'returned');
+                const overdue = activeLoans.filter((l: any) => l.due_date && new Date(l.due_date) < new Date());
+                const totalFine = safeLoans.reduce((acc: number, curr: any) => acc + (curr.fine_paid ? 0 : parseFloat(curr.fine_amount || 0)), 0);
+                const avgSession = safeSessions.length > 0
+                    ? Math.round(safeSessions.reduce((acc: number, s: any) => acc + (s.total_duration || 0), 0) / safeSessions.length)
                     : 0;
 
                 setStats({ activeLoans: activeLoans.length, overdue: overdue.length, totalFine, avgSession });
             } catch (error) {
                 console.error('Dashboard fetch error:', error);
+                setStats({ activeLoans: 0, overdue: 0, totalFine: 0, avgSession: 0 });
             }
         };
         fetchData();
@@ -194,27 +200,27 @@ const LibrarianDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
                     title="Total Books"
-                    value={bookStats?.total_titles || '...'}
+                    value={bookStats?.total_titles ?? '...'}
                     icon={<BookMarked className="text-blue-600" />}
                     color="bg-blue-50"
                     trend="Catalog"
                 />
                 <StatCard
                     title="Live Inside"
-                    value={sessionStats?.currently_inside || 0}
+                    value={sessionStats?.currently_active ?? 0}
                     icon={<Users className="text-purple-600" />}
                     color="bg-purple-50"
                     trend="Now"
                 />
                 <StatCard
                     title="Borrowed"
-                    value={bookStats?.borrowed_copies || 0}
+                    value={bookStats?.borrowed_copies ?? 0}
                     icon={<BookOpen className="text-orange-600" />}
                     color="bg-orange-50"
                 />
                 <StatCard
                     title="Today's Walkins"
-                    value={sessionStats?.total_today || 0}
+                    value={sessionStats?.total_today ?? 0}
                     icon={<CheckCircle2 className="text-emerald-600" />}
                     color="bg-emerald-50"
                 />
@@ -269,6 +275,72 @@ const LibrarianDashboard = () => {
     );
 };
 
+const GuestDashboard = () => {
+    const [stats, setStats] = React.useState<any>(null);
+
+    React.useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const res = await api.get('/books/stats');
+                setStats(res.data);
+            } catch (error) {
+                console.error('Guest stats fetch error:', error);
+            }
+        };
+        fetchStats();
+    }, []);
+
+    return (
+        <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <StatCard
+                    title="Total Books Cataloged"
+                    value={stats?.total_titles ?? '...'}
+                    icon={<BookMarked className="text-blue-600" />}
+                    color="bg-blue-50"
+                    trend="Vast Collection"
+                />
+                <StatCard
+                    title="Categories Available"
+                    value={stats?.category_summary?.length || 0}
+                    icon={<BookOpen className="text-purple-600" />}
+                    color="bg-purple-50"
+                />
+                <StatCard
+                    title="Available Copies"
+                    value={stats?.available_copies || 0}
+                    icon={<CheckCircle2 className="text-emerald-600" />}
+                    color="bg-emerald-50"
+                    trend="Ready to Issue"
+                />
+            </div>
+
+            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row items-center gap-8">
+                <div className="flex-1 space-y-4">
+                    <h2 className="text-2xl font-black text-slate-800">Welcome to LuminaLib Guest Access</h2>
+                    <p className="text-slate-600 leading-relaxed text-lg">
+                        You are currently browsing the public library catalog. You have full access to view our extensive collection of books, categories, and availability status.
+                    </p>
+                    <p className="text-slate-600 leading-relaxed">
+                        To issue a book, view your personal loans, pay fines, or log your library sessions, please sign in with your student or staff credentials.
+                    </p>
+                    <div className="pt-4 flex items-center gap-4">
+                        <Link to="/login" className="px-8 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 shadow-xl shadow-blue-500/20 transition-all text-center">
+                            Sign In Now
+                        </Link>
+                        <Link to="/books" className="px-8 py-4 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all text-center border border-slate-200">
+                            Browse Catalog
+                        </Link>
+                    </div>
+                </div>
+                <div className="w-48 h-48 md:w-64 md:h-64 bg-slate-50 border border-slate-100 rounded-[3rem] flex items-center justify-center -rotate-6 hover:rotate-0 transition-transform duration-500 shadow-inner">
+                    <BookOpen size={80} className="text-blue-100" />
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const Dashboard: React.FC = () => {
     const { user } = useAuth();
 
@@ -277,7 +349,9 @@ const Dashboard: React.FC = () => {
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
-                    <p className="text-slate-500">Welcome back, {user?.name}</p>
+                    <p className="text-slate-500">
+                        {user ? `Welcome back, ${user.name}` : 'Welcome to LuminaLib Public Directory'}
+                    </p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="relative">
@@ -288,14 +362,18 @@ const Dashboard: React.FC = () => {
                             className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none w-full md:w-64"
                         />
                     </div>
-                    <div className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-600 relative">
-                        <AlertCircle size={20} />
-                        <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-                    </div>
+                    {user && (
+                        <div className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-600 relative cursor-pointer hover:bg-slate-50 transition-colors">
+                            <AlertCircle size={20} />
+                            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+                        </div>
+                    )}
                 </div>
             </header>
 
-            {user?.role === 'admin' || user?.role === 'librarian' ? (
+            {!user ? (
+                <GuestDashboard />
+            ) : user.role === 'admin' || user.role === 'librarian' ? (
                 <LibrarianDashboard />
             ) : (
                 <StudentDashboard />

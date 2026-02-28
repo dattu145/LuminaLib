@@ -1,0 +1,26 @@
+{
+  "name": "librarymanagementsystemfinalyear",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dattu145/LuminaLib.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/dattu145/LuminaLib/issues"
+  },
+  "homepage": "https://github.com/dattu145/LuminaLib#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

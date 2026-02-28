@@ -108,8 +108,8 @@ const StudentLoans: React.FC = () => {
                 </div>
 
                 <div className="p-0">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
+                    <div className="overflow-x-auto w-full">
+                        <table className="w-full text-left min-w-[800px]">
                             <thead className="bg-slate-50/30">
                                 <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50">
                                     <th className="px-8 py-4">Book Details</th>

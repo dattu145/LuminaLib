@@ -3,20 +3,19 @@ import MainLayout from '../../layouts/MainLayout';
 import api from '../../services/api';
 import {
     Search,
-    Book,
     Filter,
     ArrowRight,
-    Layers,
     MapPin,
-    Bookmark,
     Plus,
     X,
-    XCircle,
     Loader2,
     BookOpen,
     Hash,
     Building2,
-    Grid2X2
+    Grid2X2,
+    LayoutGrid,
+    List,
+    SortAsc
 } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 
@@ -27,6 +26,9 @@ const BookCatalog: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [categories, setCategories] = useState<string[]>([]);
     const [selectedCategory, setSelectedCategory] = useState('');
+    const [sortBy, setSortBy] = useState('newest');
+    const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+    const [selectedBook, setSelectedBook] = useState<any | null>(null);
     const [pagination, setPagination] = useState<any>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -46,11 +48,24 @@ const BookCatalog: React.FC = () => {
     const fetchBooks = async (page = 1) => {
         setLoading(true);
         try {
+            let sortField = 'created_at';
+            let sortOrder = 'desc';
+
+            if (sortBy === 'title_asc') {
+                sortField = 'title';
+                sortOrder = 'asc';
+            } else if (sortBy === 'availability') {
+                sortField = 'available_copies';
+                sortOrder = 'desc';
+            }
+
             const response = await api.get('/books', {
                 params: {
                     page,
                     search: searchTerm,
-                    category: selectedCategory
+                    category: selectedCategory,
+                    sortBy: sortField,
+                    sortOrder: sortOrder
                 }
             });
             setBooks(response.data.data);
@@ -102,27 +117,27 @@ const BookCatalog: React.FC = () => {
         }, 500);
 
         return () => clearTimeout(delayDebounce);
-    }, [searchTerm, selectedCategory]);
+    }, [searchTerm, selectedCategory, sortBy]);
 
     return (
         <MainLayout>
-            <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div>
+            <div className="mb-10 flex flex-col xl:flex-row xl:items-end justify-between gap-6">
+                <div className="flex-shrink-0">
                     <h1 className="text-4xl font-black text-slate-900 tracking-tight">Library Catalog</h1>
                     <p className="text-slate-500 font-medium mt-2">Discover and browse our extensive collection of books.</p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto items-center">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap flex-1 gap-4 w-full xl:w-auto items-center xl:justify-end">
                     {isStaff && (
                         <button
                             onClick={() => setIsModalOpen(true)}
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-4 bg-slate-900 text-white font-black rounded-[1.25rem] shadow-xl shadow-slate-200 hover:bg-black transition-all active:scale-95"
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-4 bg-slate-900 text-white font-black rounded-[1.25rem] shadow-xl shadow-slate-200 hover:bg-black transition-all active:scale-95 whitespace-nowrap"
                         >
                             <Plus size={20} />
                             Add New Book
                         </button>
                     )}
-                    <div className="relative flex-1 sm:w-80">
+                    <div className="relative w-full sm:flex-1 sm:min-w-[280px]">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                         <input
                             type="text"
@@ -132,18 +147,48 @@ const BookCatalog: React.FC = () => {
                             className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-[1.25rem] shadow-sm focus:ring-4 ring-blue-500/10 outline-none transition-all"
                         />
                     </div>
-                    <div className="relative">
+                    <div className="relative w-full sm:w-auto sm:min-w-[200px]">
                         <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <select
                             value={selectedCategory}
                             onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="pl-12 pr-8 py-4 bg-white border border-slate-200 rounded-[1.25rem] shadow-sm focus:ring-4 ring-blue-500/10 outline-none transition-all appearance-none font-bold text-slate-700 min-w-[160px]"
+                            className="w-full pl-12 pr-8 py-4 bg-white border border-slate-200 rounded-[1.25rem] shadow-sm focus:ring-4 ring-blue-500/10 outline-none transition-all appearance-none font-bold text-slate-700"
                         >
                             <option value="">All Categories</option>
                             {categories.map(cat => (
                                 <option key={cat} value={cat}>{cat}</option>
                             ))}
                         </select>
+                    </div>
+
+                    <div className="relative w-full sm:w-auto sm:min-w-[200px]">
+                        <SortAsc className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                            className="w-full pl-12 pr-8 py-4 bg-white border border-slate-200 rounded-[1.25rem] shadow-sm focus:ring-4 ring-blue-500/10 outline-none transition-all appearance-none font-bold text-slate-700"
+                        >
+                            <option value="newest">Newest Additions</option>
+                            <option value="title_asc">Title (A-Z)</option>
+                            <option value="availability">Most Available</option>
+                        </select>
+                    </div>
+
+                    <div className="hidden lg:flex items-center bg-white border border-slate-200 rounded-[1.25rem] p-1.5 shadow-sm">
+                        <button
+                            onClick={() => setViewMode('table')}
+                            className={`p-2.5 rounded-xl transition-all ${viewMode === 'table' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                            title="Table View"
+                        >
+                            <List size={20} />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('grid')}
+                            className={`p-2.5 rounded-xl transition-all ${viewMode === 'grid' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                            title="Grid View"
+                        >
+                            <LayoutGrid size={20} />
+                        </button>
                     </div>
                 </div>
             </div>
@@ -289,128 +334,259 @@ const BookCatalog: React.FC = () => {
                     </div>
                     <p className="text-slate-400 font-bold mt-6 tracking-widest uppercase text-xs">Accessing Database...</p>
                 </div>
-            ) : (
-                <>
-                    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-                        <div className="overflow-x-auto overflow-y-hidden">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50/50 border-b border-slate-100">
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Book Info</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Category</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">ISBN / Code</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Location</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Copies</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {books.map((book) => (
-                                        <tr key={book.id} className="hover:bg-slate-50/80 transition-all group">
-                                            <td className="px-8 py-5">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-all">
-                                                        <BookOpen size={20} />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-black text-slate-900 leading-tight tracking-tight uppercase group-hover:text-blue-600 transition-colors">{book.title}</p>
-                                                        <p className="text-xs text-slate-500 font-bold">{book.author}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                <span className="px-3 py-1.5 bg-slate-100 text-slate-600 text-[10px] font-black rounded-lg uppercase tracking-tight">
-                                                    {book.category}
-                                                </span>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                <div className="space-y-1">
-                                                    <p className="text-xs font-black text-slate-700">{book.isbn || 'N/A'}</p>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{book.book_code}</p>
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                <div className="flex items-center gap-2 text-slate-600">
-                                                    <MapPin size={14} className="text-slate-300" />
-                                                    <span className="text-xs font-black uppercase">Rack {book.rack_number || '--'}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-5 text-center">
-                                                <div className="inline-flex flex-col items-center">
-                                                    <span className={`text-sm font-black ${book.available_copies > 0 ? 'text-slate-900' : 'text-red-500'}`}>
-                                                        {book.available_copies}
-                                                    </span>
-                                                    <span className="text-[9px] font-bold text-slate-400 uppercase"> / {book.total_copies} total</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-5 text-center">
-                                                <span className={`inline-flex px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tight ${book.available_copies > 0
-                                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                                    : 'bg-red-50 text-red-600 border border-red-100'
-                                                    }`}>
-                                                    {book.available_copies > 0 ? 'In Stock' : 'Issued'}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+            ) : books.length === 0 ? (
+                <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
+                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                        <BookOpen size={40} className="text-slate-200" />
                     </div>
 
-                    {books.length === 0 && (
-                        <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
-                            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                                <Search size={40} className="text-slate-200" />
-                            </div>
-                            <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Searching for "{searchTerm}"</h3>
-                            <p className="text-slate-400 font-medium mt-2">No matching books found in our database.</p>
+                    {searchTerm || selectedCategory ? (
+                        <>
+                            <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">
+                                No results for {searchTerm ? `"${searchTerm}"` : 'selected category'}
+                            </h3>
+                            <p className="text-slate-400 font-medium mt-2">Try adjusting your filters to find what you're looking for.</p>
                             <button
                                 onClick={() => { setSearchTerm(''); setSelectedCategory(''); }}
                                 className="mt-8 px-6 py-2 border-2 border-blue-600 text-blue-600 font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-blue-600 hover:text-white transition-all"
                             >
                                 Clear All Filters
                             </button>
-                        </div>
+                        </>
+                    ) : (
+                        <>
+                            <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Catalog is Empty</h3>
+                            <p className="text-slate-400 font-medium mt-2">No books have been added to the library yet.</p>
+                        </>
                     )}
-
-                    {pagination && pagination.total > pagination.per_page && (
-                        <div className="mt-12 flex justify-center items-center gap-6">
-                            <button
-                                disabled={pagination.current_page === 1}
-                                onClick={() => fetchBooks(pagination.current_page - 1)}
-                                className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
-                            >
-                                <ArrowRight className="rotate-180" size={20} />
-                            </button>
-
-                            <div className="flex items-center gap-2">
-                                {[...Array(pagination.last_page)].map((_, i) => (
-                                    <button
-                                        key={i + 1}
-                                        onClick={() => fetchBooks(i + 1)}
-                                        className={`w-10 h-10 rounded-2xl font-black text-xs transition-all ${pagination.current_page === i + 1
-                                            ? 'bg-blue-600 text-white shadow-xl shadow-blue-500/20'
-                                            : 'bg-white text-slate-400 hover:bg-slate-100'
-                                            }`}
-                                    >
-                                        {i + 1}
-                                    </button>
-                                ))}
+                </div>
+            ) : (
+                <>
+                    {viewMode === 'table' ? (
+                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden animate-in fade-in duration-300">
+                            <div className="overflow-x-auto w-full">
+                                <table className="w-full text-left border-collapse min-w-[1000px]">
+                                    <thead>
+                                        <tr className="bg-slate-50/50 border-b border-slate-100">
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Book Info</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Category</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">ISBN / Code</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Location</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Copies</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {books.map((book) => (
+                                            <tr key={book.id} onClick={() => setSelectedBook(book)} className="hover:bg-slate-50/80 cursor-pointer transition-all group">
+                                                <td className="px-8 py-5">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                                                            <BookOpen size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-black text-slate-900 leading-tight tracking-tight uppercase group-hover:text-blue-600 transition-colors">{book.title}</p>
+                                                            <p className="text-xs text-slate-500 font-bold">{book.author}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <span className="px-3 py-1.5 bg-slate-100 text-slate-600 text-[10px] font-black rounded-lg uppercase tracking-tight">
+                                                        {book.category}
+                                                    </span>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <div className="space-y-1">
+                                                        <p className="text-xs font-black text-slate-700">{book.isbn || 'N/A'}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{book.book_code}</p>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <div className="flex items-center gap-2 text-slate-600">
+                                                        <MapPin size={14} className="text-slate-300" />
+                                                        <span className="text-xs font-black uppercase">Rack {book.rack_number || '--'}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-5 text-center">
+                                                    <div className="inline-flex flex-col items-center">
+                                                        <span className={`text-sm font-black ${book.available_copies > 0 ? 'text-slate-900' : 'text-red-500'}`}>
+                                                            {book.available_copies}
+                                                        </span>
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase"> / {book.total_copies} total</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-5 text-center">
+                                                    <span className={`inline-flex px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tight ${book.available_copies > 0
+                                                        ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                                        : 'bg-red-50 text-red-600 border border-red-100'
+                                                        }`}>
+                                                        {book.available_copies > 0 ? 'In Stock' : 'Issued'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-
-                            <button
-                                disabled={pagination.current_page === pagination.last_page}
-                                onClick={() => fetchBooks(pagination.current_page + 1)}
-                                className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
-                            >
-                                <ArrowRight size={20} />
-                            </button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-in fade-in duration-300">
+                            {books.map((book) => (
+                                <div
+                                    key={book.id}
+                                    onClick={() => setSelectedBook(book)}
+                                    className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 transition-all cursor-pointer group flex flex-col h-full"
+                                >
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="w-12 h-12 bg-slate-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                                            <BookOpen size={24} />
+                                        </div>
+                                        <span className={`inline-flex px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tight ${book.available_copies > 0
+                                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                            : 'bg-red-50 text-red-600 border border-red-100'
+                                            }`}>
+                                            {book.available_copies > 0 ? 'In Stock' : 'Issued'}
+                                        </span>
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-lg font-black text-slate-900 leading-tight uppercase group-hover:text-blue-600 transition-colors line-clamp-2 mb-2">{book.title}</h3>
+                                        <p className="text-sm text-slate-500 font-bold mb-4">{book.author}</p>
+                                    </div>
+                                    <div className="pt-4 border-t border-slate-100 space-y-3 mt-auto">
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Category</span>
+                                            <span className="text-slate-700 font-bold">{book.category}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Rack</span>
+                                            <span className="text-slate-700 font-black">{book.rack_number || '--'}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Availability</span>
+                                            <div className="font-black">
+                                                <span className={book.available_copies > 0 ? 'text-slate-900' : 'text-red-500'}>{book.available_copies}</span>
+                                                <span className="text-slate-400"> / {book.total_copies}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </>
-            )}
-        </MainLayout>
+            )
+            }
+
+
+
+            {
+                pagination && pagination.total > pagination.per_page && (
+                    <div className="mt-12 flex justify-center items-center gap-6">
+                        <button
+                            disabled={pagination.current_page === 1}
+                            onClick={() => fetchBooks(pagination.current_page - 1)}
+                            className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
+                        >
+                            <ArrowRight className="rotate-180" size={20} />
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                            {[...Array(pagination.last_page)].map((_, i) => (
+                                <button
+                                    key={i + 1}
+                                    onClick={() => fetchBooks(i + 1)}
+                                    className={`w-10 h-10 rounded-2xl font-black text-xs transition-all ${pagination.current_page === i + 1
+                                        ? 'bg-blue-600 text-white shadow-xl shadow-blue-500/20'
+                                        : 'bg-white text-slate-400 hover:bg-slate-100'
+                                        }`}
+                                >
+                                    {i + 1}
+                                </button>
+                            ))}
+                        </div>
+
+                        <button
+                            disabled={pagination.current_page === pagination.last_page}
+                            onClick={() => fetchBooks(pagination.current_page + 1)}
+                            className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
+                        >
+                            <ArrowRight size={20} />
+                        </button>
+                    </div>
+                )
+            }
+
+            {/* Book Details Modal */}
+            {
+                selectedBook && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-[2rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                            <div className="p-8 sm:p-10 border-b border-slate-100 flex justify-between items-start bg-slate-50/50">
+                                <div className="flex items-center gap-6">
+                                    <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
+                                        <BookOpen size={32} />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-none mb-2">{selectedBook.title}</h2>
+                                        <p className="text-slate-500 font-bold flex items-center gap-2">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                                            {selectedBook.author}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedBook(null)}
+                                    className="p-3 hover:bg-white rounded-full text-slate-400 hover:text-slate-600 transition-all hover:shadow-sm"
+                                >
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            <div className="p-8 sm:p-10">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                                    <div className="space-y-6">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Category</p>
+                                            <p className="font-bold text-slate-900">{selectedBook.category}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Publisher</p>
+                                            <p className="font-bold text-slate-900">{selectedBook.publisher || 'Not Specified'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Location</p>
+                                            <p className="font-bold text-slate-900 bg-slate-100 inline-block px-3 py-1 rounded-lg">Rack {selectedBook.rack_number || '--'}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-6">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">ISBN</p>
+                                            <p className="font-mono font-bold text-slate-900">{selectedBook.isbn || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Book Code</p>
+                                            <p className="font-mono font-bold text-slate-900">{selectedBook.book_code}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Availability</p>
+                                            <div className="flex items-center gap-3 mt-1">
+                                                <span className={`text-2xl font-black ${selectedBook.available_copies > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                    {selectedBook.available_copies}
+                                                </span>
+                                                <span className="text-sm font-bold text-slate-400 uppercase">
+                                                    / {selectedBook.total_copies} total
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </MainLayout >
     );
 };
 

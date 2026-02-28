@@ -108,8 +108,8 @@ const FineManagement: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
+                        <div className="overflow-x-auto w-full">
+                            <table className="w-full text-left min-w-[700px]">
                                 <thead className="bg-slate-50/30">
                                     <tr className="text-[11px] font-black uppercase tracking-widest text-slate-400">
                                         <th className="px-6 py-4">Student & Book</th>
