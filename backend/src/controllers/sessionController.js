@@ -13,14 +13,14 @@ export const logSession = async (req, res) => {
             .from('library_sessions')
             .select('*')
             .eq('user_id', user.id)
-            .is('logout_time', null)
+            .is('check_out_time', null)
             .single();
 
         if (activeSession) {
             // Log out
             const { error: updateError } = await supabase
                 .from('library_sessions')
-                .update({ logout_time: new Date().toISOString() })
+                .update({ check_out_time: new Date().toISOString() })
                 .eq('id', activeSession.id);
 
             if (updateError) throw updateError;
@@ -31,7 +31,7 @@ export const logSession = async (req, res) => {
                 .from('library_sessions')
                 .insert([{
                     user_id: user.id,
-                    login_time: new Date().toISOString()
+                    check_in_time: new Date().toISOString()
                 }]);
 
             if (insertError) throw insertError;
@@ -48,8 +48,8 @@ export const getLiveStudents = async (req, res) => {
         const { data: sessions, error } = await supabase
             .from('library_sessions')
             .select('*, user:users(*)')
-            .is('logout_time', null)
-            .order('login_time', { ascending: false });
+            .is('check_out_time', null)
+            .order('check_in_time', { ascending: false });
 
         if (error) throw error;
         res.json(sessions);
@@ -67,8 +67,8 @@ export const getTodaySessions = async (req, res) => {
         const { data: sessions, error } = await supabase
             .from('library_sessions')
             .select('*, user:users(*)')
-            .gte('login_time', today.toISOString())
-            .order('login_time', { ascending: false });
+            .gte('check_in_time', today.toISOString())
+            .order('check_in_time', { ascending: false });
 
         if (error) throw error;
         res.json(sessions);
@@ -83,7 +83,7 @@ export const getUserSessions = async (req, res) => {
             .from('library_sessions')
             .select('*')
             .eq('user_id', req.user.id)
-            .order('login_time', { ascending: false })
+            .order('check_in_time', { ascending: false })
             .limit(50);
 
         if (error) {
@@ -107,13 +107,13 @@ export const getSessionStats = async (req, res) => {
         const { count: currentlyActive, error: err1 } = await supabase
             .from('library_sessions')
             .select('*', { count: 'exact', head: true })
-            .is('logout_time', null);
+            .is('check_out_time', null);
 
         // Unique visitors today count - JS Set because Supabase select distinct on user_id might be tricky without RPC
         const { data: todaySessions, error: err2 } = await supabase
             .from('library_sessions')
             .select('user_id')
-            .gte('login_time', today.toISOString());
+            .gte('check_in_time', today.toISOString());
 
         const uniqueVisitorsSet = new Set(todaySessions?.map(s => s.user_id));
         const uniqueVisitorsCount = uniqueVisitorsSet.size;

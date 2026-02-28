@@ -13,8 +13,8 @@ export const getAnalytics = async (req, res) => {
 
         const { data: recentSessions } = await supabase
             .from('library_sessions')
-            .select('login_time')
-            .gte('login_time', thirtyDaysAgo.toISOString());
+            .select('check_in_time')
+            .gte('check_in_time', thirtyDaysAgo.toISOString());
 
         // Process sessions into a 30-day map
         // This is a simplified Node.js equivalent of Laravel's DB group-by approach
@@ -27,7 +27,7 @@ export const getAnalytics = async (req, res) => {
 
         if (recentSessions) {
             recentSessions.forEach(session => {
-                const dateKey = session.login_time.split('T')[0];
+                const dateKey = session.check_in_time.split('T')[0];
                 if (visitorTrendObj[dateKey] !== undefined) {
                     visitorTrendObj[dateKey]++;
                 }
@@ -46,7 +46,10 @@ export const getAnalytics = async (req, res) => {
                 books_issued: totalIssues || 0,
             },
             visitor_trend: visitorTrackLength,
-            popular_books: [] // Placeholder if needed
+            most_borrowed: [],
+            monthly_fines: [],
+            peak_hours: [],
+            popular_books: []
         });
     } catch (err) {
         console.error('Analytics error:', err);

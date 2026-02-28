@@ -58,10 +58,10 @@ const AnalyticsPage: React.FC = () => {
     }, []);
 
     const mostBorrowedChart = {
-        labels: data?.most_borrowed.map((b: any) => b.title) || [],
+        labels: data?.most_borrowed?.map((b: any) => b.title) || [],
         datasets: [{
             label: 'Borrow Count',
-            data: data?.most_borrowed.map((b: any) => b.borrow_count) || [],
+            data: data?.most_borrowed?.map((b: any) => b.borrow_count) || [],
             backgroundColor: 'rgba(59, 130, 246, 0.6)',
             borderColor: 'rgb(59, 130, 246)',
             borderWidth: 1,
@@ -70,10 +70,10 @@ const AnalyticsPage: React.FC = () => {
     };
 
     const monthlyFinesChart = {
-        labels: data?.monthly_fines.map((f: any) => f.month) || [],
+        labels: data?.monthly_fines?.map((f: any) => f.month) || [],
         datasets: [{
             label: 'Monthly Fines (₹)',
-            data: data?.monthly_fines.map((f: any) => f.total_fines) || [],
+            data: data?.monthly_fines?.map((f: any) => f.total_fines) || [],
             borderColor: 'rgb(244, 63, 94)',
             backgroundColor: 'rgba(244, 63, 94, 0.1)',
             fill: true,
@@ -84,10 +84,10 @@ const AnalyticsPage: React.FC = () => {
     };
 
     const peakHoursChart = {
-        labels: data?.peak_hours.map((h: any) => `${h.hour}:00`) || [],
+        labels: data?.peak_hours?.map((h: any) => `${h.hour}:00`) || [],
         datasets: [{
             label: 'Traffic',
-            data: data?.peak_hours.map((h: any) => h.count) || [],
+            data: data?.peak_hours?.map((h: any) => h.count) || [],
             backgroundColor: 'rgba(139, 92, 246, 0.6)',
             borderColor: 'rgb(139, 92, 246)',
             borderWidth: 1,

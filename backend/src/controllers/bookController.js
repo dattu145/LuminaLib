@@ -119,3 +119,18 @@ export const store = async (req, res) => {
         res.status(500).json({ message: 'Error creating book' });
     }
 };
+
+export const getByCode = async (req, res) => {
+    try {
+        const { book_code } = req.params;
+        const { data: book, error } = await supabase
+            .from('books')
+            .select('*')
+            .eq('book_code', book_code)
+            .single();
+        if (error || !book) return res.status(404).json({ message: 'Book not found with that code' });
+        res.json(book);
+    } catch (err) {
+        res.status(500).json({ message: 'Error looking up book' });
+    }
+};
