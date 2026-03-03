@@ -1,3 +1,6 @@
+import dns from 'dns';
+dns.setDefaultResultOrder('ipv4first'); // Fix: Node.js v17+ prefers IPv6 by default causing Supabase timeouts
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';

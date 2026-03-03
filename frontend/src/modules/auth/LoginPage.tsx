@@ -2,14 +2,179 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuth } from '../../store/AuthContext';
-import { Book, Lock, Mail, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react';
+import {
+    Book, Lock, Mail, Eye, EyeOff, Loader2, ArrowRight,
+    Hash, X, CheckCircle, AlertTriangle, KeyRound
+} from 'lucide-react';
 
+// ─────────────────────────────────────────────
+// Request Access Modal
+// ─────────────────────────────────────────────
+type RequestStatus = 'idle' | 'loading' | 'success' | 'not_found';
+
+const RequestAccessModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+    const [regNumber, setRegNumber] = useState('');
+    const [status, setStatus] = useState<RequestStatus>('idle');
+    const [sentTo, setSentTo] = useState('');
+
+    const handleRequest = async () => {
+        if (!regNumber.trim()) return;
+        setStatus('loading');
+        try {
+            const res = await api.post('/request-account-details', {
+                register_number: regNumber.trim()
+            });
+            // Extract partially masked email from the message or just confirm success
+            setSentTo(res.data?.email || '');
+            setStatus('success');
+        } catch (err: any) {
+            if (err.response?.status === 404) {
+                setStatus('not_found');
+            } else {
+                setStatus('not_found'); // fallback — show not found
+            }
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-slate-900 border border-slate-700/60 rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 relative">
+
+                {/* Top accent bar */}
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
+
+                {/* Close button */}
+                <button
+                    onClick={onClose}
+                    className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
+                >
+                    <X size={18} />
+                </button>
+
+                {/* Header */}
+                <div className="px-8 pt-8 pb-6">
+                    <div className="flex items-center gap-4 mb-6">
+                        <div className="w-12 h-12 bg-blue-500/15 rounded-2xl flex items-center justify-center shrink-0">
+                            <KeyRound size={22} className="text-blue-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black text-white">Request Access</h3>
+                            <p className="text-slate-400 text-sm mt-0.5 font-medium">
+                                Enter your register number to receive your login credentials via email.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* IDLE / LOADING state — show input */}
+                    {(status === 'idle' || status === 'loading') && (
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                                    Register Number
+                                </label>
+                                <div className="relative group/input">
+                                    <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4 group-focus-within/input:text-blue-500 transition-colors" />
+                                    <input
+                                        type="text"
+                                        autoFocus
+                                        value={regNumber}
+                                        onChange={(e) => setRegNumber(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleRequest()}
+                                        className="w-full pl-11 pr-4 py-3.5 bg-slate-950/60 border-2 border-slate-800 rounded-2xl outline-none focus:border-blue-500 focus:bg-slate-900/80 transition-all text-white placeholder:text-slate-600 font-mono font-bold text-sm"
+                                        placeholder="e.g. 621522243031"
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleRequest}
+                                disabled={status === 'loading' || !regNumber.trim()}
+                                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-3.5 rounded-2xl transition-all uppercase tracking-wider text-sm disabled:opacity-50 shadow-lg shadow-blue-500/20"
+                            >
+                                {status === 'loading' ? (
+                                    <><Loader2 size={16} className="animate-spin" /> Checking & Sending...</>
+                                ) : (
+                                    <>Send My Credentials ✉️</>
+                                )}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* SUCCESS state */}
+                    {status === 'success' && (
+                        <div className="flex flex-col items-center text-center gap-4 py-4">
+                            <div className="w-16 h-16 bg-emerald-500/15 rounded-full flex items-center justify-center">
+                                <CheckCircle size={32} className="text-emerald-400" />
+                            </div>
+                            <div>
+                                <h4 className="text-white font-black text-lg">Email Sent!</h4>
+                                <p className="text-slate-400 text-sm mt-2 leading-relaxed">
+                                    Your temporary password has been sent to the email address registered with{' '}
+                                    <span className="text-blue-400 font-bold font-mono">
+                                        Reg: {regNumber}
+                                    </span>.
+                                </p>
+                                <p className="text-slate-500 text-xs mt-3 font-medium">
+                                    Check your inbox (and spam folder). Log in with that password and then change it from your profile settings.
+                                </p>
+                            </div>
+                            <button
+                                onClick={onClose}
+                                className="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-2xl transition-colors text-sm"
+                            >
+                                Back to Login
+                            </button>
+                        </div>
+                    )}
+
+                    {/* NOT FOUND state */}
+                    {status === 'not_found' && (
+                        <div className="flex flex-col items-center text-center gap-4 py-4">
+                            <div className="w-16 h-16 bg-amber-500/15 rounded-full flex items-center justify-center">
+                                <AlertTriangle size={32} className="text-amber-400" />
+                            </div>
+                            <div>
+                                <h4 className="text-white font-black text-lg">Not Yet Registered</h4>
+                                <p className="text-slate-400 text-sm mt-2 leading-relaxed">
+                                    No account found for register number{' '}
+                                    <span className="text-white font-bold font-mono">{regNumber}</span>.
+                                </p>
+                                <p className="text-slate-500 text-xs mt-3 font-medium">
+                                    It looks like your data hasn't been added to the system yet. Please contact your librarian to get your account created.
+                                </p>
+                            </div>
+                            <div className="flex gap-3 w-full mt-2">
+                                <button
+                                    onClick={() => { setStatus('idle'); setRegNumber(''); }}
+                                    className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-2xl transition-colors text-sm"
+                                >
+                                    Try Again
+                                </button>
+                                <button
+                                    onClick={onClose}
+                                    className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-3 rounded-2xl transition-colors text-sm"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─────────────────────────────────────────────
+// Login Page
+// ─────────────────────────────────────────────
 const LoginPage: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showRequestAccess, setShowRequestAccess] = useState(false);
 
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -142,11 +307,32 @@ const LoginPage: React.FC = () => {
                         </button>
                     </form>
 
-                    <p className="mt-8 text-center text-[11px] font-black uppercase tracking-widest text-slate-500">
-                        New around here? Contact your Librarian for account access.
+                    {/* Divider */}
+                    <div className="flex items-center gap-3 my-6">
+                        <div className="flex-1 h-px bg-slate-800" />
+                        <span className="text-[10px] font-black uppercase text-slate-600 tracking-widest">or</span>
+                        <div className="flex-1 h-px bg-slate-800" />
+                    </div>
+
+                    {/* Request Access Button */}
+                    <button
+                        onClick={() => setShowRequestAccess(true)}
+                        className="w-full flex items-center justify-center gap-2 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-600 text-slate-300 hover:text-white font-bold py-3.5 rounded-2xl transition-all text-sm"
+                    >
+                        <KeyRound size={16} className="text-blue-400" />
+                        First Time? Request Access
+                    </button>
+
+                    <p className="mt-5 text-center text-[10px] font-bold uppercase tracking-widest text-slate-600">
+                        Accounts are managed by your librarian
                     </p>
                 </div>
             </div>
+
+            {/* Request Access Modal */}
+            {showRequestAccess && (
+                <RequestAccessModal onClose={() => setShowRequestAccess(false)} />
+            )}
         </div>
     );
 };

@@ -1,7 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes } from 'crypto';
 import axios from 'axios';
 
 const generateToken = (user) => {
@@ -26,20 +26,20 @@ export const login = async (req, res) => {
             return res.status(422).json({ message: 'The email field and password are required.' });
         }
 
-        // Fetch User
+        const identifier = email.trim();
+
+        // Fetch user by email OR register_number — whichever they type
         const { data: user, error } = await supabase
             .from('users')
             .select('*')
-            .eq('email', email)
-            .single();
+            .or(`email.eq.${identifier},register_number.eq.${identifier}`)
+            .maybeSingle();
 
         if (error || !user) {
             return res.status(422).json({ errors: { email: ['The provided credentials are incorrect.'] } });
         }
 
-        // Verify password hash (Laravel creates it using bcrypt)
-        // Laravel's bcrypt hashes start with $2y$. Standard bcrypt typically uses $2a$ or $2b$. 
-        // bcryptjs handles $2y$ transparently.
+        // Verify password hash
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(422).json({ errors: { email: ['The provided credentials are incorrect.'] } });
@@ -147,21 +147,34 @@ export const register = async (req, res) => {
 export const requestAccountDetails = async (req, res) => {
     try {
         const { register_number } = req.body;
-        if (!register_number) return res.status(400).json({ message: 'Register number is required.' });
+        const register_number_clean = register_number.trim();
+        if (!register_number_clean) return res.status(400).json({ message: 'Register number is required.' });
+        console.log('[DEBUG] requestAccountDetails called with reg:', JSON.stringify(register_number_clean));
 
-        // Lookup Student
+        // Lookup Student — maybeSingle returns null (not error) when no rows found
         const { data: user, error } = await supabase
             .from('users')
-            .select('id, name, email, register_number')
-            .eq('register_number', register_number)
-            .single();
+            .select('id, name, email, register_number, role')
+            .eq('register_number', register_number_clean)
+            .maybeSingle();
 
-        if (error || !user) {
-            return res.status(404).json({ message: 'No pre-existing account found for this register number.' });
+        console.log('[DEBUG] Supabase result - data:', JSON.stringify(user), 'error:', JSON.stringify(error));
+
+        if (error) {
+            console.error('Supabase lookup error:', error.message, error.code);
+            return res.status(500).json({ message: 'Database error: ' + error.message });
+        }
+
+        if (!user) {
+            return res.status(404).json({ message: 'No account found for this register number.' });
+        }
+
+        if (user.role !== 'student') {
+            return res.status(404).json({ message: 'No student account found for this register number.' });
         }
 
         // Generate brand new temporary random password hash
-        const rawPassword = crypto.randomBytes(6).toString('hex'); // e.g. "a1b2c3d4e5f6"
+        const rawPassword = randomBytes(6).toString('hex'); // e.g. "a1b2c3d4e5f6"
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(rawPassword, salt);
 
@@ -176,20 +189,24 @@ export const requestAccountDetails = async (req, res) => {
                 await axios.post('https://api.brevo.com/v3/smtp/email', {
                     sender: { name: 'LuminaLib', email: senderEmail },
                     to: [{ email: user.email, name: user.name }],
-                    subject: '📚 Your LuminaLib Temporary Password',
+                    subject: '📚 Your LuminaLib Account Credentials',
                     htmlContent: `<!DOCTYPE html>
 <html lang="en">
-<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f0f4ff;padding:40px 0;">
-  <table width="520" align="center" style="background:#fff;border-radius:20px;padding:36px;text-align:center;">
-    <tr><td><h2 style="color:#1e40af;">Hello ${user.name},</h2></td></tr>
-    <tr><td><p style="color:#475569;line-height:1.6;">A request for your LuminaLib credentials was made. Here is your new access password.</p></td></tr>
-    <tr><td>
-      <div style="background:#eff6ff;padding:24px;border:2px solid #bfdbfe;border-radius:12px;margin:20px 0;">
-        <p style="margin:4px 0;"><strong>Email or Reg no:</strong> ${user.register_number}</p>
-        <p style="margin:8px 0;"><strong>Temporary Password:</strong> <code style="background:#e0e7ff;padding:2px 6px; font-weight: bold; font-size: 18px;">${rawPassword}</code></p>
+<body style="font-family:'Segoe UI',Arial,sans-serif;background:#0f172a;padding:40px 0;">
+  <table width="540" align="center" style="background:#1e293b;border-radius:20px;padding:40px;text-align:center;border:1px solid #334155;">
+    <tr><td style="padding-bottom:20px;">
+      <h1 style="color:#60a5fa;font-size:28px;font-weight:900;margin:0;">LuminaLib<span style="color:#818cf8;">.</span></h1>
+    </td></tr>
+    <tr><td><h2 style="color:#f1f5f9;font-weight:700;font-size:22px;">Hello ${user.name},</h2></td></tr>
+    <tr><td><p style="color:#94a3b8;line-height:1.7;font-size:15px;">Your LuminaLib library account is ready. Here are your login credentials.</p></td></tr>
+    <tr><td style="padding:20px 0;">
+      <div style="background:#0f172a;padding:28px;border:2px solid #3b82f6;border-radius:16px;margin:10px 0;">
+        <p style="margin:0 0 12px;color:#64748b;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Your Credentials</p>
+        <p style="margin:8px 0;color:#e2e8f0;font-size:15px;"><strong style="color:#94a3b8;">Register No:</strong>&nbsp; <span style="font-family:monospace;color:#60a5fa;font-weight:700;">${user.register_number}</span></p>
+        <p style="margin:8px 0;color:#e2e8f0;font-size:15px;"><strong style="color:#94a3b8;">Password:</strong>&nbsp; <code style="background:#1e293b;border:1px solid #3b82f6;padding:6px 14px;border-radius:8px;font-size:18px;font-weight:900;color:#a5f3fc;letter-spacing:2px;">${rawPassword}</code></p>
       </div>
     </td></tr>
-    <tr><td><p style="color:#94a3b8;font-size:13px;">Please log in using the password above and immediately change it via your profile settings.</p></td></tr>
+    <tr><td><p style="color:#64748b;font-size:13px;line-height:1.6;">Log in at your library portal using the credentials above.<br>You can change your password anytime from your profile settings.</p></td></tr>
   </table>
 </body>
 </html>`
