@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase.js';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 export const listStaff = async (req, res) => {
     try {
@@ -12,6 +13,173 @@ export const listStaff = async (req, res) => {
         res.json(staff);
     } catch (err) {
         res.status(500).json({ message: 'Failed to fetch staff' });
+    }
+};
+
+export const listStudents = async (req, res) => {
+    try {
+        const { page = 1, limit = 20, search = '' } = req.query;
+        const from = (page - 1) * limit;
+        const to = from + limit - 1;
+
+        let query = supabase
+            .from('users')
+            .select('id, name, email, register_number, department, phone, is_active, created_at', { count: 'exact' })
+            .eq('role', 'student');
+
+        if (search) {
+            query = query.or(`name.ilike.%${search}%,register_number.ilike.%${search}%,email.ilike.%${search}%`);
+        }
+
+        const { data: students, error, count } = await query
+            .order('created_at', { ascending: false })
+            .range(from, to);
+
+        if (error) throw error;
+
+        res.json({
+            data: students || [],
+            total: count || 0,
+            page: Number(page),
+            per_page: Number(limit),
+            last_page: Math.ceil((count || 0) / limit)
+        });
+    } catch (err) {
+        console.error('List students error:', err);
+        res.status(500).json({ message: 'Failed to fetch students' });
+    }
+};
+
+export const searchStudents = async (req, res) => {
+    try {
+        const { q } = req.query;
+        if (!q || q.trim().length < 1) return res.json([]);
+
+        const { data, error } = await supabase
+            .from('users')
+            .select('id, name, email, register_number, department')
+            .eq('role', 'student')
+            .eq('is_active', true)
+            .or(`register_number.ilike.%${q.trim()}%,name.ilike.%${q.trim()}%`)
+            .limit(10);
+
+        if (error) throw error;
+        res.json(data || []);
+    } catch (err) {
+        console.error('Student search error:', err);
+        res.status(500).json({ message: 'Failed to search students' });
+    }
+};
+
+export const createStudent = async (req, res) => {
+    try {
+        const { name, email, register_number, phone, department } = req.body;
+
+        if (!name || !email || !register_number) {
+            return res.status(422).json({ message: 'Name, email, and register number are required' });
+        }
+
+        // Generate strong random password string internally. (No more Lumina@regno)
+        const rawPassword = crypto.randomBytes(8).toString('hex');
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(rawPassword, salt);
+
+        const { data: newStudent, error } = await supabase
+            .from('users')
+            .insert([{
+                id: crypto.randomUUID(),
+                name,
+                email,
+                register_number,
+                phone,
+                department,
+                role: 'student',
+                password: hashedPassword,
+                is_active: true
+            }])
+            .select('id, name, email, register_number, role, is_active')
+            .single();
+
+        if (error) {
+            if (error.message.includes('unique constraint')) {
+                return res.status(409).json({ message: 'Email or Register Number already exists' });
+            }
+            throw error;
+        }
+
+        res.status(201).json({ message: 'Student created successfully', student: newStudent });
+    } catch (err) {
+        console.error('Create student error:', err);
+        res.status(500).json({ message: 'Failed to create student' });
+    }
+};
+
+export const bulkCreateStudents = async (req, res) => {
+    try {
+        const { students } = req.body;
+        if (!students || !Array.isArray(students) || students.length === 0) {
+            return res.status(422).json({ message: 'Valid students array is required' });
+        }
+
+        let successCount = 0;
+        let errors = [];
+
+        // Note: Supabase bulk insert exists, but looping allows graceful skip of duplicates without failing entire batch
+        for (const [index, std] of students.entries()) {
+            if (!std.name || !std.email || !std.register_number) {
+                errors.push({ row: index + 1, email: std.email, error: 'Missing required fields' });
+                continue;
+            }
+
+            try {
+                // Check if user exists first to reliably prevent false logging format in Supabase JS
+                const { data: existingUser } = await supabase
+                    .from('users')
+                    .select('id')
+                    .or(`email.eq.${std.email},register_number.eq.${std.register_number}`)
+                    .maybeSingle();
+
+                if (existingUser) {
+                    errors.push({ row: index + 1, email: std.email, error: 'Duplicate Record (Email or Reg No exists)' });
+                    continue; // Skip silently
+                }
+
+                // Generate random hash for bulk creations too
+                const rawPassword = crypto.randomBytes(8).toString('hex');
+                const salt = await bcrypt.genSalt(10);
+                const hashedPassword = await bcrypt.hash(rawPassword, salt);
+
+                const { error } = await supabase
+                    .from('users')
+                    .insert([{
+                        id: crypto.randomUUID(),
+                        name: std.name,
+                        email: std.email,
+                        register_number: std.register_number,
+                        phone: std.phone || null,
+                        department: std.department || null,
+                        role: 'student',
+                        password: hashedPassword,
+                        is_active: true
+                    }]);
+
+                if (error) throw error;
+                successCount++;
+            } catch (err) {
+                errors.push({ row: index + 1, email: std.email, error: err.message.includes('unique constraint') ? 'Duplicate Record' : 'Insertion failed' });
+            }
+        }
+
+        res.json({
+            message: `Processed ${students.length} students.`,
+            success: successCount,
+            failed: errors.length,
+            errors
+        });
+
+    } catch (err) {
+        console.error('Bulk upload error:', err);
+        res.status(500).json({ message: 'Failed to process bulk upload' });
     }
 };
 

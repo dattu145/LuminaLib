@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './store/AuthContext';
 import LoginPage from './modules/auth/LoginPage';
-import RegisterPage from './modules/auth/RegisterPage';
+
 import Dashboard from './pages/Dashboard';
 import LibraryKiosk from './modules/sessions/LibraryKiosk';
 import SessionManagement from './modules/sessions/SessionManagement';
@@ -12,6 +12,7 @@ import StudentLoans from './modules/issues/StudentLoans';
 import AnalyticsPage from './modules/analytics/AnalyticsPage';
 import AdminManagement from './modules/admin/AdminManagement';
 import BookCatalog from './modules/books/BookCatalog';
+import StudentManagement from './modules/management/StudentManagement';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, isLoading } = useAuth();
@@ -37,7 +38,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/register" element={<Navigate to="/login" replace />} />
           <Route path="/" element={<Dashboard />} />
           <Route path="/books" element={<BookCatalog />} />
           <Route path="/kiosk" element={<LibraryKiosk />} />
@@ -87,6 +88,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <StudentLoans />
+              </ProtectedRoute>
+            }
+          />
+          {/* Admin Specific Routes */}
+          <Route
+            path="/management"
+            element={
+              <ProtectedRoute>
+                <StudentManagement />
               </ProtectedRoute>
             }
           />

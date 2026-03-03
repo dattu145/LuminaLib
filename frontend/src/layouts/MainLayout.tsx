@@ -9,6 +9,7 @@ import {
     Settings,
     Receipt,
     BarChart3,
+    Users,
     Menu,
     X
 } from 'lucide-react';
@@ -35,6 +36,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         { label: 'Intelligence', path: '/analytics', icon: <BarChart3 size={20} />, role: ['librarian', 'admin'] },
         { label: 'My Loans', path: '/my-loans', icon: <BookMarked size={20} />, role: ['student'] },
         { label: 'My Sessions', path: '/student-sessions', icon: <History size={20} />, role: ['student'] },
+        { label: 'Student Management', path: '/management', icon: <Users size={20} />, role: ['admin', 'librarian'] },
         { label: 'Management', path: '/admin', icon: <Settings size={20} />, role: ['admin'] },
     ];
 

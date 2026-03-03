@@ -15,20 +15,24 @@ import {
     Grid2X2,
     LayoutGrid,
     List,
-    SortAsc
+    SortAsc,
+    UserPlus
 } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
+import IssueBookModal from '../../components/common/IssueBookModal';
 
 const BookCatalog: React.FC = () => {
     const { user } = useAuth();
     const [books, setBooks] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [categories, setCategories] = useState<string[]>([]);
     const [selectedCategory, setSelectedCategory] = useState('');
     const [sortBy, setSortBy] = useState('newest');
     const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
     const [selectedBook, setSelectedBook] = useState<any | null>(null);
+    const [selectedBookToIssue, setSelectedBookToIssue] = useState<any | null>(null);
     const [pagination, setPagination] = useState<any>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -47,31 +51,25 @@ const BookCatalog: React.FC = () => {
 
     const fetchBooks = async (page = 1) => {
         setLoading(true);
+        setFetchError(null);
         try {
             let sortField = 'created_at';
             let sortOrder = 'desc';
 
-            if (sortBy === 'title_asc') {
-                sortField = 'title';
-                sortOrder = 'asc';
-            } else if (sortBy === 'availability') {
-                sortField = 'available_copies';
-                sortOrder = 'desc';
-            }
+            if (sortBy === 'title_asc') { sortField = 'title'; sortOrder = 'asc'; }
+            else if (sortBy === 'availability') { sortField = 'available_copies'; sortOrder = 'desc'; }
 
             const response = await api.get('/books', {
-                params: {
-                    page,
-                    search: searchTerm,
-                    category: selectedCategory,
-                    sortBy: sortField,
-                    sortOrder: sortOrder
-                }
+                params: { page, search: searchTerm, category: selectedCategory, sortBy: sortField, sortOrder }
             });
-            setBooks(response.data.data);
+            setBooks(response.data.data || []);
             setPagination(response.data);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to fetch books:', error);
+            const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
+            setFetchError(isTimeout
+                ? 'Connection timed out. Your Supabase project may be paused.'
+                : 'Failed to load books. Check your connection and try again.');
         } finally {
             setLoading(false);
         }
@@ -334,6 +332,24 @@ const BookCatalog: React.FC = () => {
                     </div>
                     <p className="text-slate-400 font-bold mt-6 tracking-widest uppercase text-xs">Accessing Database...</p>
                 </div>
+            ) : fetchError ? (
+                <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+                    <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <BookOpen size={36} className="text-red-300" />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-800">Could not load books</h3>
+                    <p className="text-slate-500 text-sm mt-2 max-w-sm">{fetchError}</p>
+                    <div className="mt-4 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 max-w-md text-left">
+                        <strong>💡 Supabase free tier?</strong> Projects pause after 1 week of inactivity.<br />
+                        Go to <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" className="underline font-bold">supabase.com/dashboard</a> → click <strong>Resume project</strong>.
+                    </div>
+                    <button
+                        onClick={() => fetchBooks(1)}
+                        className="mt-6 px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all text-sm"
+                    >
+                        ↻ Retry
+                    </button>
+                </div>
             ) : books.length === 0 ? (
                 <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
                     <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
@@ -581,11 +597,36 @@ const BookCatalog: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
+                                {isStaff && selectedBook.available_copies > 0 && (
+                                    <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end">
+                                        <button
+                                            onClick={() => {
+                                                setSelectedBookToIssue(selectedBook);
+                                                setSelectedBook(null);
+                                            }}
+                                            className="px-6 py-3 bg-blue-600 text-white font-black uppercase tracking-widest text-[11px] rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2"
+                                        >
+                                            <UserPlus size={16} /> Direct Issue to Student
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
                 )
             }
+
+            {/* Direct Issue Modal (Staff Only) */}
+            {selectedBookToIssue && (
+                <IssueBookModal
+                    book={selectedBookToIssue}
+                    onClose={() => setSelectedBookToIssue(null)}
+                    onSuccess={() => {
+                        setSelectedBookToIssue(null);
+                        fetchBooks(pagination?.current_page || 1);
+                    }}
+                />
+            )}
         </MainLayout >
     );
 };

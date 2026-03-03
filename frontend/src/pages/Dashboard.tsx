@@ -13,9 +13,12 @@ import {
     BookMarked,
     Receipt,
     History as HistoryIcon,
-    Users
+    Users,
+    KeyRound
 } from 'lucide-react';
 import TimeRemaining from '../components/common/TimeRemaining';
+import SetPasswordModal from '../components/common/SetPasswordModal';
+import { Toaster } from 'react-hot-toast';
 
 const StatCard: React.FC<{ title: string, value: string | number, icon: React.ReactNode, color: string, trend?: string }> = ({ title, value, icon, color, trend }) => (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4">
@@ -38,77 +41,117 @@ const StatCard: React.FC<{ title: string, value: string | number, icon: React.Re
 );
 
 const StudentDashboard = () => {
+    const { user } = useAuth();
     const [stats, setStats] = React.useState<any>(null);
     const [loans, setLoans] = React.useState<any[]>([]);
     const [sessions, setSessions] = React.useState<any[]>([]);
+    const [showPasswordModal, setShowPasswordModal] = React.useState(false);
+    const [isDataLoading, setIsDataLoading] = React.useState(true);
+    const [dataError, setDataError] = React.useState<string | null>(null);
 
-    React.useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [loansResult, sessionsResult] = await Promise.allSettled([
-                    api.get('/my-issues'),
-                    api.get('/my-sessions')
-                ]);
+    const loadDashboard = React.useCallback(async () => {
+        setIsDataLoading(true);
+        setDataError(null);
+        try {
+            const [loansResult, sessionsResult] = await Promise.allSettled([
+                api.get('/my-issues'),
+                api.get('/my-sessions')
+            ]);
 
-                const loansData = loansResult.status === 'fulfilled'
-                    ? (loansResult.value.data.data || loansResult.value.data || [])
-                    : [];
-                const sessionsData = sessionsResult.status === 'fulfilled'
-                    ? (sessionsResult.value.data.data || sessionsResult.value.data || [])
-                    : [];
-
-                setLoans(Array.isArray(loansData) ? loansData : []);
-                setSessions(Array.isArray(sessionsData) ? sessionsData : []);
-
-                // Calculate stats locally from fetched data
-                const safeLoans = Array.isArray(loansData) ? loansData : [];
-                const safeSessions = Array.isArray(sessionsData) ? sessionsData : [];
-                const activeLoans = safeLoans.filter((l: any) => l.status !== 'returned');
-                const overdue = activeLoans.filter((l: any) => l.due_date && new Date(l.due_date) < new Date());
-                const totalFine = safeLoans.reduce((acc: number, curr: any) => acc + (curr.fine_paid ? 0 : parseFloat(curr.fine_amount || 0)), 0);
-                const avgSession = safeSessions.length > 0
-                    ? Math.round(safeSessions.reduce((acc: number, s: any) => acc + (s.total_duration || 0), 0) / safeSessions.length)
-                    : 0;
-
-                setStats({ activeLoans: activeLoans.length, overdue: overdue.length, totalFine, avgSession });
-            } catch (error) {
-                console.error('Dashboard fetch error:', error);
-                setStats({ activeLoans: 0, overdue: 0, totalFine: 0, avgSession: 0 });
+            // If BOTH failed with timeout, surface an error
+            const bothFailed = loansResult.status === 'rejected' && sessionsResult.status === 'rejected';
+            if (bothFailed) {
+                const err = (loansResult as PromiseRejectedResult).reason;
+                const isTimeout = err?.code === 'ECONNABORTED' || err?.message?.includes('timeout');
+                throw new Error(isTimeout ? 'timeout' : 'network');
             }
-        };
-        fetchData();
+
+            const loansData = loansResult.status === 'fulfilled'
+                ? (loansResult.value.data.data || loansResult.value.data || []) : [];
+            const sessionsData = sessionsResult.status === 'fulfilled'
+                ? (sessionsResult.value.data.data || sessionsResult.value.data || []) : [];
+
+            setLoans(Array.isArray(loansData) ? loansData : []);
+            setSessions(Array.isArray(sessionsData) ? sessionsData : []);
+
+            const safeLoans = Array.isArray(loansData) ? loansData : [];
+            const safeSessions = Array.isArray(sessionsData) ? sessionsData : [];
+            const activeLoans = safeLoans.filter((l: any) => l.status !== 'returned');
+            const overdue = activeLoans.filter((l: any) => l.due_date && new Date(l.due_date) < new Date());
+            const totalFine = safeLoans.reduce((acc: number, curr: any) => acc + (curr.fine_paid ? 0 : parseFloat(curr.fine_amount || 0)), 0);
+            const avgSession = safeSessions.length > 0
+                ? Math.round(safeSessions.reduce((acc: number, s: any) => acc + (s.total_duration || 0), 0) / safeSessions.length) : 0;
+            setStats({ activeLoans: activeLoans.length, overdue: overdue.length, totalFine, avgSession });
+        } catch (error: any) {
+            console.error('Dashboard fetch error:', error);
+            const isTimeout = error?.message === 'timeout' || error?.code === 'ECONNABORTED';
+            setDataError(isTimeout
+                ? 'Could not reach the database. Your Supabase project may be paused.'
+                : 'Failed to load dashboard data. Check your connection.');
+            setStats({ activeLoans: 0, overdue: 0, totalFine: 0, avgSession: 0 });
+        } finally {
+            setIsDataLoading(false);
+        }
     }, []);
+
+    React.useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
     const activeSession = sessions[0] && !sessions[0].check_out_time ? sessions[0] : null;
 
     return (
         <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard
-                    title="Active Loans"
-                    value={stats?.activeLoans || 0}
-                    icon={<BookOpen className="text-blue-600" />}
-                    color="bg-blue-50"
-                />
-                <StatCard
-                    title="Overdue"
-                    value={stats?.overdue || 0}
-                    icon={<AlertCircle className="text-orange-600" />}
-                    color="bg-orange-50"
-                />
-                <StatCard
-                    title="Unpaid Fines"
-                    value={`₹${stats?.totalFine?.toFixed(2) || '0.00'}`}
-                    icon={<Receipt className="text-red-600" />}
-                    color="bg-red-50"
-                />
-                <StatCard
-                    title="Avg. Session"
-                    value={`${stats?.avgSession || 0}m`}
-                    icon={<Clock className="text-emerald-600" />}
-                    color="bg-emerald-50"
-                />
+            <Toaster position="top-right" />
+
+            {/* Set Password Banner */}
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+                        <KeyRound size={20} className="text-amber-600" />
+                    </div>
+                    <div>
+                        <p className="font-bold text-amber-900 text-sm">Set your own password</p>
+                        <p className="text-xs text-amber-700 mt-0.5">You may be using a system-generated default password. Update it now for security.</p>
+                    </div>
+                </div>
+                <button
+                    onClick={() => setShowPasswordModal(true)}
+                    className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all whitespace-nowrap"
+                >
+                    Set New Password
+                </button>
             </div>
+
+            {/* ── Loading skeleton ── */}
+            {isDataLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {[...Array(4)].map((_, i) => (
+                        <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 animate-pulse">
+                            <div className="w-12 h-12 bg-slate-100 rounded-xl mb-4" />
+                            <div className="h-3 bg-slate-100 rounded w-2/3 mb-2" />
+                            <div className="h-7 bg-slate-100 rounded w-1/2" />
+                        </div>
+                    ))}
+                </div>
+            ) : dataError ? (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <p className="font-bold text-red-800 text-sm">⚠️ Could not load your dashboard data</p>
+                        <p className="text-xs text-red-600 mt-1">{dataError}</p>
+                        <p className="text-xs text-amber-700 mt-2">💡 <strong>Supabase free tier?</strong> Projects pause after 1 week. Visit <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" className="underline font-bold">supabase.com/dashboard</a> → Resume project.</p>
+                    </div>
+                    <button onClick={loadDashboard}
+                        className="shrink-0 px-4 py-2 bg-red-600 text-white font-bold text-sm rounded-xl hover:bg-red-700 transition-all">
+                        ↻ Retry
+                    </button>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <StatCard title="Active Loans" value={stats?.activeLoans || 0} icon={<BookOpen className="text-blue-600" />} color="bg-blue-50" />
+                    <StatCard title="Overdue" value={stats?.overdue || 0} icon={<AlertCircle className="text-orange-600" />} color="bg-orange-50" />
+                    <StatCard title="Unpaid Fines" value={`₹${stats?.totalFine?.toFixed(2) || '0.00'}`} icon={<Receipt className="text-red-600" />} color="bg-red-50" />
+                    <StatCard title="Avg. Session" value={`${stats?.avgSession || 0}m`} icon={<Clock className="text-emerald-600" />} color="bg-emerald-50" />
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
@@ -167,6 +210,14 @@ const StudentDashboard = () => {
                     </div>
                 </div>
             </div>
+
+            {/* OTP Password Reset Modal */}
+            {showPasswordModal && user?.email && (
+                <SetPasswordModal
+                    email={user.email}
+                    onClose={() => setShowPasswordModal(false)}
+                />
+            )}
         </div>
     );
 };

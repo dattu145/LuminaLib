@@ -2,6 +2,7 @@ import { supabase } from '../config/supabase.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
+import axios from 'axios';
 
 const generateToken = (user) => {
     return jwt.sign(
@@ -85,7 +86,11 @@ export const register = async (req, res) => {
             .limit(1);
 
         if (existingUser && existingUser.length > 0) {
-            return res.status(422).json({ errors: { email: ['The email or registration number has already been taken.'] } });
+            return res.status(409).json({
+                message: 'Account already exists. Your librarian may have already pre-registered your account.',
+                requiresDetails: true,
+                errors: { email: ['The email or registration number has already been taken.'] }
+            });
         }
 
         const salt = await bcrypt.genSalt(12);
@@ -136,6 +141,70 @@ export const register = async (req, res) => {
     } catch (err) {
         console.error('Registration error:', err);
         res.status(500).json({ message: 'Server error during registration.' });
+    }
+};
+
+export const requestAccountDetails = async (req, res) => {
+    try {
+        const { register_number } = req.body;
+        if (!register_number) return res.status(400).json({ message: 'Register number is required.' });
+
+        // Lookup Student
+        const { data: user, error } = await supabase
+            .from('users')
+            .select('id, name, email, register_number')
+            .eq('register_number', register_number)
+            .single();
+
+        if (error || !user) {
+            return res.status(404).json({ message: 'No pre-existing account found for this register number.' });
+        }
+
+        // Generate brand new temporary random password hash
+        const rawPassword = crypto.randomBytes(6).toString('hex'); // e.g. "a1b2c3d4e5f6"
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(rawPassword, salt);
+
+        // Update database with new password
+        await supabase.from('users').update({ password: hashedPassword }).eq('id', user.id);
+
+        const bravoKey = process.env.BRAVO_API_KEY;
+        const senderEmail = process.env.BRAVO_SENDER_EMAIL || 'no-reply@luminalib.com';
+
+        if (bravoKey) {
+            try {
+                await axios.post('https://api.brevo.com/v3/smtp/email', {
+                    sender: { name: 'LuminaLib', email: senderEmail },
+                    to: [{ email: user.email, name: user.name }],
+                    subject: '📚 Your LuminaLib Temporary Password',
+                    htmlContent: `<!DOCTYPE html>
+<html lang="en">
+<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f0f4ff;padding:40px 0;">
+  <table width="520" align="center" style="background:#fff;border-radius:20px;padding:36px;text-align:center;">
+    <tr><td><h2 style="color:#1e40af;">Hello ${user.name},</h2></td></tr>
+    <tr><td><p style="color:#475569;line-height:1.6;">A request for your LuminaLib credentials was made. Here is your new access password.</p></td></tr>
+    <tr><td>
+      <div style="background:#eff6ff;padding:24px;border:2px solid #bfdbfe;border-radius:12px;margin:20px 0;">
+        <p style="margin:4px 0;"><strong>Email or Reg no:</strong> ${user.register_number}</p>
+        <p style="margin:8px 0;"><strong>Temporary Password:</strong> <code style="background:#e0e7ff;padding:2px 6px; font-weight: bold; font-size: 18px;">${rawPassword}</code></p>
+      </div>
+    </td></tr>
+    <tr><td><p style="color:#94a3b8;font-size:13px;">Please log in using the password above and immediately change it via your profile settings.</p></td></tr>
+  </table>
+</body>
+</html>`
+                }, { headers: { 'api-key': bravoKey, 'content-type': 'application/json' } });
+            } catch (emailError) {
+                console.error('Failed to email account details:', emailError.message);
+            }
+        } else {
+            console.log(`[DEV] Account details for ${user.register_number} mapped to email ${user.email} with NEW password ${rawPassword}`);
+        }
+
+        res.json({ message: 'Your login details have been generated and sent to your registered email address.' });
+    } catch (err) {
+        console.error('Request account details error:', err);
+        res.status(500).json({ message: 'Failed to process request.' });
     }
 };
 

@@ -2,6 +2,7 @@ import axios from 'axios';
 
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
+    timeout: 12000, // 12s — fails fast if Supabase/backend is unreachable
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
