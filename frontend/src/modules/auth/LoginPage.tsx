@@ -15,17 +15,15 @@ type RequestStatus = 'idle' | 'loading' | 'success' | 'not_found';
 const RequestAccessModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const [regNumber, setRegNumber] = useState('');
     const [status, setStatus] = useState<RequestStatus>('idle');
-    const [sentTo, setSentTo] = useState('');
 
     const handleRequest = async () => {
         if (!regNumber.trim()) return;
         setStatus('loading');
         try {
-            const res = await api.post('/request-account-details', {
+            await api.post('/request-account-details', {
                 register_number: regNumber.trim()
             });
             // Extract partially masked email from the message or just confirm success
-            setSentTo(res.data?.email || '');
             setStatus('success');
         } catch (err: any) {
             if (err.response?.status === 404) {
